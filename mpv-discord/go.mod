@@ -1,4 +1,4 @@
-module github.com/tnychn/mpv-discord
+module github.com/Didas-git/mpv-discord
 
 go 1.23.4
 

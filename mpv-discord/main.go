@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tnychn/mpv-discord/discordrpc"
-	"github.com/tnychn/mpv-discord/mpvrpc"
+	"github.com/Didas-git/mpv-discord/discordrpc"
+	"github.com/Didas-git/mpv-discord/mpvrpc"
 )
 
 var (
@@ -26,10 +26,10 @@ func init() {
 	presence = discordrpc.NewPresence(os.Args[2])
 }
 
-var currTime int64 = time.Now().Local().UnixMilli()
+var currTime int64 = time.Now().UnixMilli()
 
 func refreshCurrTime() {
-	currTime = time.Now().Local().UnixMilli()
+	currTime = time.Now().UnixMilli()
 }
 
 func getActivity() (activity discordrpc.Activity, err error) {
@@ -41,86 +41,123 @@ func getActivity() (activity discordrpc.Activity, err error) {
 		prop, err = client.GetPropertyString(key)
 		return
 	}
+	getPropertyBool := func(key string) (prop bool) {
+		prop, err = client.GetPropertyBool(key)
+		return
+	}
 
-	// Large Image
 	activity.LargeImageKey = "mpv"
-	activity.LargeImageText = "mpv"
+	activity.LargeImageText = "MPV Media Player"
 	if version := getPropertyString("mpv-version"); version != "" {
-		activity.LargeImageText += " " + version[4:]
+		activity.LargeImageText = version[5:]
 	}
 
-	// Details
-	activity.Details = getPropertyString("media-title")
-	fileFormat := getPropertyString("file-format")
-	metaTitle := getProperty("metadata/by-key/Title")
-	metaArtist := getProperty("metadata/by-key/Artist")
-	metaAlbum := getProperty("metadata/by-key/Album")
-	if metaTitle != nil {
-		activity.Details = metaTitle.(string)
+	details := getPropertyString("media-title")
+
+	if details == "" {
+		return discordrpc.Activity{
+			State:          "(Idle)",
+			Details:        "Nothing Playing...",
+			Type:           3,
+			LargeImageKey:  "mpv",
+			LargeImageText: activity.LargeImageText,
+			SmallImageKey:  "stop",
+			SmallImageText: "Idle",
+			Timestamps: &discordrpc.ActivityTimestamps{
+				Start: currTime,
+				End:   0,
+			},
+		}, nil
 	}
 
-	// State
-	if metaArtist != nil {
-		activity.State += " by " + metaArtist.(string)
+	metadata_title := getPropertyString("metadata/by-key/Title")
+	metadata_artist := getPropertyString("metadata/by-key/Artist")
+	metadata_album := getPropertyString("metadata/by-key/Album")
+
+	if metadata_title != "" {
+		details = metadata_title
 	}
-	if metaAlbum != nil {
-		activity.State += " on " + metaAlbum.(string)
+	if metadata_artist != "" {
+		details += "\nby " + metadata_artist
 	}
-	if activity.State == "" {
-		if aid, ok := getProperty("aid").(string); !ok || aid != "false" {
-			activity.Type = 2
-			activity.State += "Audio"
-		}
-		activity.State += "/"
-		if vid, ok := getProperty("vid").(string); !ok || vid != "false" {
-			activity.State += "Video"
-			activity.Type = 3
-		}
-		activity.State += (": " + fileFormat)
+	if metadata_album != "" {
+		details += "\non " + metadata_album
 	}
 
-	// Small Image
-	buffering := getProperty("paused-for-cache")
-	pausing := getProperty("pause")
-	loopingFile := getPropertyString("loop-file")
-	loopingPlaylist := getPropertyString("loop-playlist")
-	if buffering != nil && buffering.(bool) {
+	idle := getPropertyBool("idle-active")
+	core_idle := getPropertyBool("core-idle")
+	buffering := getPropertyBool("paused-for-cache")
+	pause := getPropertyBool("pause")
+
+	state := ""
+
+	if idle {
+		state = "(Idle)"
+		activity.SmallImageKey = "stop"
+		activity.SmallImageText = "Idle"
+	} else if buffering {
 		activity.SmallImageKey = "buffer"
 		activity.SmallImageText = "Buffering"
-	} else if pausing != nil && pausing.(bool) {
+	} else if pause {
 		activity.SmallImageKey = "pause"
 		activity.SmallImageText = "Paused"
-	} else if loopingFile != "no" || loopingPlaylist != "no" {
-		activity.SmallImageKey = "loop"
-		activity.SmallImageText = "Looping"
-	} else {
+	} else if !core_idle {
 		activity.SmallImageKey = "play"
 		activity.SmallImageText = "Playing"
 	}
-	if percentage := getProperty("percent-pos"); percentage != nil {
-		activity.SmallImageText += fmt.Sprintf(" (%d%%)", int(percentage.(float64)))
-	}
-	if pcount := getProperty("playlist-count"); pcount != nil && int(pcount.(float64)) > 1 {
-		if ppos := getProperty("playlist-pos-1"); ppos != nil {
-			activity.SmallImageText += fmt.Sprintf(" [%d/%d]", int(ppos.(float64)), int(pcount.(float64)))
+
+	if !idle {
+		playlist := fmt.Sprintf("- Playlist: [%s/%s]", getPropertyString("playlist-pos-1"), getPropertyString("playlist-count"))
+
+		loop := ""
+
+		loop_file := getPropertyBool("loop-file")
+		loop_playlist := getPropertyBool("loop-playlist")
+
+		if loop_file {
+			if loop_playlist {
+				loop = "File, Playlist"
+			} else {
+				loop = "File"
+			}
+		} else if loop_playlist {
+			loop = "Playlist"
+		} else {
+			loop = "disabled"
 		}
+
+		loop = fmt.Sprintf("- Loop: %s", loop)
+
+		state += getPropertyString("options/term-status-msg")
+		activity.SmallImageText = fmt.Sprintf("%s%s%s", activity.SmallImageText, playlist, loop)
 	}
+
+	activity.State = state
+	activity.Details = details
+	activity.Type = 3
 
 	// Timestamps
 	_duration := getProperty("duration")
+	if _duration == nil {
+		_duration = 0.0
+	}
 	durationMillis := int64(_duration.(float64))
+
 	_timePos := getProperty("time-pos")
+	if _timePos == nil {
+		_timePos = 0.0
+	}
 	timePosMills := int64(_timePos.(float64))
 
-	startTimePos := currTime - (timePosMills * 1000)
+	refreshCurrTime()
+	startTimePos := currTime - (timePosMills)*1000
 	duration := startTimePos + (durationMillis * 1000)
 
-	if pausing != nil && !pausing.(bool) {
+	if !pause {
 		activity.Timestamps = &discordrpc.ActivityTimestamps{
-			Start: startTimePos, 
-			End: duration,
+			Start: startTimePos,
+			End:   duration,
 		}
-		refreshCurrTime()
 	}
 	return
 }
@@ -164,7 +201,7 @@ func main() {
 	openClient()
 	go openPresence()
 
-	for range time.Tick(time.Second) {
+	for range time.Tick(time.Second * 3) {
 		activity, err := getActivity()
 		if err != nil {
 			if errors.Is(err, syscall.EPIPE) {

@@ -8,7 +8,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/tnychn/mpv-discord/mpvrpc/pipe"
+	"github.com/Didas-git/mpv-discord/mpvrpc/pipe"
 )
 
 type Client struct {
@@ -110,6 +110,17 @@ func (c *Client) GetPropertyString(key string) (string, error) {
 		value = ""
 	}
 	return value.(string), nil
+}
+
+func (c *Client) GetPropertyBool(key string) (bool, error) {
+	value, err := c.Call("get_property", key)
+	if err != nil {
+		return false, err
+	}
+	if value == nil {
+		value = false
+	}
+	return value.(bool), nil
 }
 
 func (c *Client) Close() error {

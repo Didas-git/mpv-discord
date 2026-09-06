@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/tnychn/mpv-discord/discordrpc/payloads"
+	"github.com/Didas-git/mpv-discord/discordrpc/payloads"
 )
 
 func init() {
