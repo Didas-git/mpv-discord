@@ -107,7 +107,7 @@ func getActivity() (activity discordrpc.Activity, err error) {
 	}
 
 	if !idle {
-		playlist := fmt.Sprintf("- Playlist: [%s/%s]", getPropertyString("playlist-pos-1"), getPropertyString("playlist-count"))
+		playlist := fmt.Sprintf(" - Playlist: [%s/%s]", getPropertyString("playlist-pos-1"), getPropertyString("playlist-count"))
 
 		loop := ""
 
@@ -126,7 +126,7 @@ func getActivity() (activity discordrpc.Activity, err error) {
 			loop = "disabled"
 		}
 
-		loop = fmt.Sprintf("- Loop: %s", loop)
+		loop = fmt.Sprintf(" - Loop: %s", loop)
 
 		state += getPropertyString("options/term-status-msg")
 		activity.SmallImageText = fmt.Sprintf("%s%s%s", activity.SmallImageText, playlist, loop)
@@ -150,7 +150,7 @@ func getActivity() (activity discordrpc.Activity, err error) {
 	timePosMills := int64(_timePos.(float64))
 
 	refreshCurrTime()
-	startTimePos := currTime - (timePosMills)*1000
+	startTimePos := currTime - (timePosMills * 1000)
 	duration := startTimePos + (durationMillis * 1000)
 
 	if !pause {
